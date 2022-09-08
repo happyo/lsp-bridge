@@ -341,6 +341,7 @@ Then LSP-Bridge will start by gdb, please send new issue with `*lsp-bridge*' buf
     (go-mode . "gopls")
     (groovy-mode . "groovy-language-server")
     (haskell-mode . "hls")
+    (swift-mode . "sourcekit-lsp")
     (lua-mode . "sumneko")
     (dart-mode . "dart-analysis-server")
     (scala-mode . "metals")
@@ -381,6 +382,7 @@ Then LSP-Bridge will start by gdb, please send new issue with `*lsp-bridge*' buf
     go-mode-hook
     haskell-mode-hook
     haskell-literate-mode-hook
+    swift-mode-hook
     dart-mode-hook
     scala-mode-hook
     typescript-mode-hook
