@@ -551,6 +551,7 @@ Possible choices are pyright_ruff, pyright-background-analysis_ruff, jedi_ruff, 
     (ess-r-mode .                                                                "rlanguageserver")
     ((graphql-mode graphql-ts-mode) .                                            "graphql-lsp")
     (swift-mode .                                                                "swift-sourcekit")
+    (swift-ts-mode .                                                                "swift-sourcekit")
     (csharp-mode .                                                               lsp-bridge-csharp-lsp-server)
     (kotlin-mode .                                                               "kotlin-language-server")
     (verilog-mode .                                                              "verible")
@@ -630,6 +631,7 @@ Possible choices are pyright_ruff, pyright-background-analysis_ruff, jedi_ruff, 
     ess-r-mode-hook
     verilog-mode-hook
     swift-mode-hook
+    swift-ts-mode-hook
     csharp-mode-hook
     telega-chat-mode-hook
     markdown-mode-hook
