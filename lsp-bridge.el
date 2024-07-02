@@ -571,6 +571,7 @@ Possible choices are pyright_ruff, pyright-background-analysis_ruff, jedi_ruff, 
     (racket-mode    .                                                            "racket-langserver")
     (mojo-mode    .                                                              "mojo-lsp-server")
     (solidity-mode .                                                             "solidity")
+    (gleam-ts-mode .                                                             "gleam")
     )
   "The lang server rule for file mode."
   :type 'cons)
@@ -670,6 +671,7 @@ Possible choices are pyright_ruff, pyright-background-analysis_ruff, jedi_ruff, 
     beancount-mode-hook
     mojo-mode-hook
     solidity-mode-hook
+    gleam-ts-mode-hook
     )
   "The default mode hook to enable lsp-bridge."
   :type '(repeat variable))
@@ -752,6 +754,7 @@ you can customize `lsp-bridge-get-workspace-folder' to return workspace folder p
     (go-ts-mode                 . c-basic-offset)       ;Golang
     (svelte-mode                . js-indent-level)      ;Svelte
     (fsharp-mode                . fsharp-indent-offset) ; F#
+    (gleam-ts-mode              . gleam-ts-indent-offset)     ; Gleam
     (default                    . standard-indent)) ; default fallback
   "A mapping from `major-mode' to its indent variable.")
 
@@ -791,7 +794,7 @@ you can customize `lsp-bridge-get-workspace-folder' to return workspace folder p
 
 (defun lsp-bridge-find-file-hook-function ()
   (when (and lsp-bridge-enable-with-tramp (file-remote-p (buffer-file-name)))
-    (lsp-bridge-sync-tramp-remote)
+    (lsp-bridge-sync-tramp-remote nil)
     (when (string-prefix-p "/docker:" (buffer-file-name))
       (lsp-bridge-call-async "open_remote_file" (buffer-file-name) (list :line 0 :character 0)))))
 
@@ -2854,7 +2857,7 @@ LSP server will confused those indent action and return wrong completion candida
 I haven't idea how to make lsp-bridge works with `electric-indent-mode', PR are welcome.")
 
 
-(defun lsp-bridge-sync-tramp-remote ()
+(defun lsp-bridge-sync-tramp-remote (force)
   (interactive)
   (let* ((file-name (lsp-bridge-get-buffer-file-name-text))
          (tramp-vec (tramp-dissect-file-name file-name))
@@ -2866,7 +2869,7 @@ I haven't idea how to make lsp-bridge works with `electric-indent-mode', PR are 
          (tramp-connection-info (substring file-name 0 (+ 1 (string-match ":" file-name (+ 1 (string-match ":" file-name))))))
          (ip-host (cdr (assoc tramp-connection-info lsp-bridge-tramp-connection-info))))
 
-    (if (not ip-host)
+    (if (or force (not ip-host))
         (when (and (not (member tramp-method '("sudo" "sudoedit" "su" "doas")))
                    (not (member host lsp-bridge-tramp-blacklist)))
           (read-only-mode 1)
@@ -2898,7 +2901,7 @@ SSH tramp file name is like /ssh:user@host#port:path"
           (when port (concat "#" port))
           ":" path))
 
-(defun lsp-bridge-remote-reconnect (remote-file-host)
+(defun lsp-bridge-remote-reconnect (remote-file-host force)
   "Restore TRAMP connection infomation of REMOTE-FILE-HOST."
   (when lsp-bridge-remote-start-automatically
     (with-current-buffer (lsp-bridge-get-match-buffer-by-filehost remote-file-host)
@@ -2911,7 +2914,7 @@ SSH tramp file name is like /ssh:user@host#port:path"
                                                                         lsp-bridge-remote-file-host
                                                                         lsp-bridge-remote-file-port
                                                                         lsp-bridge-remote-file-path))))
-        (lsp-bridge-sync-tramp-remote)))))
+        (lsp-bridge-sync-tramp-remote force)))))
 
 (defvar lsp-bridge-remote-file-window nil)
 (defun lsp-bridge-open-remote-file--response(tramp-method user host port path content position)

@@ -184,7 +184,7 @@ class RemoteFileClient(threading.Thread):
         _, stdout, stderr = self.ssh.exec_command(
             f"""
             nohup /bin/bash -l -c '
-            pid=$(ps aux | grep -v grep | grep lsp_bridge.py | cut -d " " -f2)
+            pid=$(ps aux | grep -v grep | grep lsp_bridge.py | awk '\\''{{print $2}}'\\'')
             if [ "$pid" == "" ]; then
                 echo -e "Start lsp-bridge process as user $(whoami)" | tee >{remote_log}
                 {remote_python_command} {remote_python_file} >>{remote_log} 2>&1 &
@@ -207,8 +207,8 @@ class RemoteFileClient(threading.Thread):
             self.ssh.exec_command(
                 f"""
                 nohup /bin/bash -l -c '
-                pid=$(ps aux | grep -v grep | grep lsp_bridge.py | cut -d " " -f2)
-                echo "try kill" | tee >> {remote_log}
+                pid=$(ps aux | grep -v grep | grep lsp_bridge.py | awk '\\''{{print $2}}'\\'')
+                echo "try kill $pid" | tee >> {remote_log}
                 if ! [ "$pid" == "" ]; then
                     echo -e "kill lsp-bridge process as user $(whoami)" | tee >>{remote_log}
                     kill $pid
@@ -431,13 +431,14 @@ class FileSyncServer(RemoteFileServer):
 class FileElispServer(RemoteFileServer):
     def __init__(self, host, port, lsp_bridge):
         self.lsp_bridge = lsp_bridge
-        self.result_queue = queue.Queue()
+        self.rpcs = {}
         super().__init__(host, port)
 
     def handle_client(self):
         # remote server lsp-bridge process use this cient_socket to call elisp function from local Emacs.
         log_time(f"Client connect from {self.client_address[0]}:{self.client_address[1]}")
 
+        self.rpcs.clear()
         threading.Thread(target=super().handle_client).start()
 
         self.lsp_bridge.init_search_backends()
@@ -450,17 +451,24 @@ class FileElispServer(RemoteFileServer):
             log_time("Drop 'say hello' message from local Emacs.")
             return
         else:
-            self.result_queue.put(message)
+            ts = message["timestamp"]
+            self.rpcs[ts]["result"] = message["result"]
+            self.rpcs[ts]["completion"].set()
 
     def call_remote_rpc(self, message):
+        ts = time.monotonic_ns()
+        cpl = threading.Event()
         try:
+            message["timestamp"] = ts
+            self.rpcs[ts] = { "msg": message, "completion": cpl }
             self.send_message(message)
         except Exception as e:
             logger.exception(e)
             return None
         else:
-            result = self.result_queue.get()
-            self.result_queue.task_done()
+            cpl.wait()
+            result = self.rpcs[ts]["result"]
+            del self.rpcs[ts]
             return result
 
 
