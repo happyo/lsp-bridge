@@ -48,7 +48,7 @@ Advantages of lsp-bridge:
 (global-lsp-bridge-mode)
 ```
 
-To use terminal mode, please install [acm-terminal](https://github.com/twlz0ne/acm-terminal). However, it's essential to note that acm-terminal may potentially cause compatibility issues due to modifications made to the acm.el code by me. Should such an occurrence arise, you can report any problems as an issue in the repository of acm-terminal, as its creator is a highly skilled developer who will swiftly address any compatibility issues.
+Note: please install [acm-terminal](https://github.com/twlz0ne/acm-terminal) if you want to complete in terminal
 
 * If you are using straight to install, you should use the following configuration to install:
 
@@ -93,7 +93,7 @@ and run `doom sync` to install it.
 Please note:
 
 1. When using lsp-bridge, please first disable other completion plugins, such as lsp-mode, eglot, company, corfu, etc. lsp-bridge provides a complete solution from the completion backend, completion frontend to multi-backend integration
-2. In addition to providing LSP completion, lsp-bridge also provides many non-LSP completion backends, including file words, paths, Yas/Tempel, TabNine, Codeium, Copilot, Citre, Ctags, Org roam and other completion backends. If you expect to provide these completions in a certain mode, please add the corresponding mode to `lsp-bridge-default-mode-hooks`
+2. In addition to providing LSP completion, lsp-bridge also provides many non-LSP completion backends, including capf, file words, paths, Yas/Tempel, TabNine, Codeium, Copilot, Citre, Ctags, Org roam and other completion backends. If you expect to provide these completions in a certain mode, please add the corresponding mode to `lsp-bridge-default-mode-hooks`
 3. Please do not perform ```byte compilation``` or ```native compilation``` for lsp-bridge as it will result in a difference in API and the latest version after upgrading compiling afterwards, Lsp-bridge is designed with multi-threading that does not require compilation to speed it up
 
 ## Local Usage
@@ -165,17 +165,6 @@ Here is a compelte configuration example
     // More info: https://aka.ms/dev-containers-non-root.
     "remoteUser": "root"
 }
-```
-
-#### doom-emacs configuration
-`config.el`
-
-``` elisp
-(use-package! lsp-bridge
-  :config
-  (setq lsp-bridge-python-multi-lsp-server "pyright-background-analysis_ruff")
-
-  (global-lsp-bridge-mode))
 ```
 
 start the devcontainer and use `file-find` `/docker:user@container:/path/to/file` to open the file.
@@ -447,6 +436,11 @@ If your language supports mixed multi-language servers, it is recommended to che
 
 
 ## FAQ
+### Support capf
+Currently, the design of capf is not suitable for the LSP protocol. The capf completion backend is only suitable for non-LSP scenarios. You can enable completion by setting `(setq acm-enable-capf t)`.
+
+If there is no capf completion, please ensure that the current mode is present in `acm-backend-capf-mode-list`. If it's not in `acm-backend-capf-mode-list`, pull request are welcome.
+
 ### pyenv configuration
 
 If you use a Python distribution installed via `pyenv`, you must adjust your
@@ -576,7 +570,6 @@ Please read below articles first:
 - [LSP Protocol Specification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)
 - [lsp-bridge Architecture Design](https://manateelazycat.github.io/2022/05/12/lsp-bridge/)
 - [lsp-bridge Remote Completion Architecture Design](https://manateelazycat.github.io/2023/03/31/lsp-bridge-remote-file/)
-- [Why lsp-bridge doesn't use capf](https://manateelazycat.github.io/2022/06/26/why-lsp-bridge-not-use-capf/)
 - [In-depth Analysis of the LSP Protocol](https://manateelazycat.github.io/2024/06/11/lsp-trick/)
 - [lsp-bridge Wiki](https://github.com/manateelazycat/lsp-bridge/wiki)
 
