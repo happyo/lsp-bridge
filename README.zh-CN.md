@@ -148,12 +148,12 @@ lsp-bridge 开箱即用， 安装好语言对应的 [LSP 服务器](https://gith
 
 ```json
 {
-    "name": "Node.js & TypeScript",
+    "name": "Ubuntu",
     // Your base image
-    "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bullseye",
+    "image": "mcr.microsoft.com/devcontainers/base:jammy",
     // Features to add to the dev container. More info: https://containers.dev/features.
     "features": {
-        "ghcr.io/nohzafk/devcontainer-feature-emacs-lsp-bridge/pyright-background-analysis_ruff:latest": {}
+        "ghcr.io/nohzafk/devcontainer-feature-emacs-lsp-bridge/gleam:latest": {}
     },
     "forwardPorts": [
         9997,
@@ -161,7 +161,7 @@ lsp-bridge 开箱即用， 安装好语言对应的 [LSP 服务器](https://gith
         9999
     ],
     // More info: https://aka.ms/dev-containers-non-root.
-    "remoteUser": "root"
+    "remoteUser": "vscode"
 }
 ```
 
@@ -174,14 +174,13 @@ lsp-bridge 开箱即用， 安装好语言对应的 [LSP 服务器](https://gith
 ```elisp
 (use-package! apheleia
   :config
-  (setq +format-with-lsp nil)
-  ;; 设置 Formatter
+  ;; which formatter to use
   (setf (alist-get 'python-mode apheleia-mode-alist) 'ruff)
   (setf (alist-get 'python-ts-mode apheleia-mode-alist) 'ruff)
-
-  (setq apheleia-remote-algorithm 'local)
-  (after! lsp-bridge
-    (add-hook 'apheleia-post-format-hook #'lsp-bridge-update-tramp-docker-file-mod-time)))
+  ;; don't mess up with lsp-mode
+  (setq +format-with-lsp nil)
+  ;; run the formatter inside container
+  (setq apheleia-remote-algorithm 'remote))
 ```
 
 ## 按键
@@ -258,13 +257,14 @@ lsp-bridge 针对许多语言都提供 2 个以上的语言服务器支持， �
 
 - `lsp-bridge-c-lsp-server`: C 语言的服务器， 可以选择`clangd`或者`ccls`
 - `lsp-bridge-elixir-lsp-server`: Elixir 语言的服务器， 可以选择`elixirLS`,`lexical`或者`nextls`
-- `lsp-bridge-python-lsp-server`: Python 语言的服务器， 可以选择 `pyright`, `jedi`, `python-ms`, `pylsp`, `ruff`, 需要注意的是, `lsp-bridge-multi-lang-server-mode-list` 的优先级高于 `lsp-bridge-single-lang-server-mode-list`, 如果你只想使用单服务器， 请先去掉 `lsp-bridge-multi-lang-server-mode-list` 中 python-mode 的设置
+- `lsp-bridge-python-lsp-server`: Python 语言的服务器， 可以选择 `basedpyright`, `pyright`, `jedi`, `python-ms`, `pylsp`, `ruff`, 需要注意的是, `lsp-bridge-multi-lang-server-mode-list` 的优先级高于 `lsp-bridge-single-lang-server-mode-list`, 如果你只想使用单服务器， 请先去掉 `lsp-bridge-multi-lang-server-mode-list` 中 python-mode 的设置
 - `lsp-bridge-php-lsp-server`: PHP 语言的服务器， 可以选择`intelephense`或者`phpactor`
 - `lsp-bridge-tex-lsp-server`: LaTeX 语言的服务器， 可以选择`texlab`或者`digestif`
 - `lsp-bridge-csharp-lsp-server`: C#语言的服务器， 可以选择`omnisharp-mono`, `omnisharp-dotnet` 或者 `csharp-ls`, 注意你需要给 OmniSharp 文件**执行权限**才能正常工作
-- `lsp-bridge-python-multi-lsp-server`: Python 多语言服务器， 可以选择 `pyright_ruff`, `jedi_ruff`, `python-ms_ruff`, `pylsp_ruff`
+- `lsp-bridge-python-multi-lsp-server`: Python 多语言服务器， 可以选择 `basedpyright_ruff`, `pyright_ruff`, `jedi_ruff`, `python-ms_ruff`, `pylsp_ruff`
 - `lsp-bridge-nix-lsp-server`: Nix 语言的服务器， 可以选择 `rnix-lsp`, `nixd` 或者 `nil`
-- `lsp-bridge-markdown-lsp-server`: Markdown 语言的服务器， 可以选择 `vale-ls` 或者 `nil`
+- `lsp-bridge-markdown-lsp-server`: Markdown 语言的服务器， 可以选择 `vale-ls` 或者 `marksman`
+- `lsp-bridge-lua-lsp-server`: Lua 语言的服务器， 可以选择 `sumneko`, 或者 `lua-lsp`
 
 ## 选项
 
@@ -279,7 +279,7 @@ lsp-bridge 针对许多语言都提供 2 个以上的语言服务器支持， �
 - `lsp-bridge-find-def-fallback-function`: 当 LSP 没有找到定义时， 可以通过定制这个函数来进行候选跳转， 比如绑定 citre 函数
 - `lsp-bridge-find-ref-fallback-function`: 当 LSP 没有找到引用时， 可以通过定制这个函数来进行候选跳转， 比如绑定 citre 函数
 - `lsp-bridge-find-def-select-in-open-windows`: 当打开这个选项时， 查找定义命令会尽量选择已经打开窗口去跳转定义， 而不是在当前窗口切换 Buffer， 默认关闭
-- `lsp-bridge-enable-completion-in-string`: 支持在字符串中弹出补全， 默认关闭
+- `lsp-bridge-enable-completion-in-string`: 支持在字符串中弹出补全， 默认关闭, 如果你只想在某些语言的字符串中弹出补全， 请自定义选项 `lsp-bridge-completion-in-string-file-types`
 - `lsp-bridge-enable-completion-in-minibuffer`: 支持在 Minibuffer 中弹出补全， 默认关闭
 - `lsp-bridge-enable-diagnostics`: 代码诊断， 默认打开
 - `lsp-bridge-enable-inlay-hint`: 类型嵌入提示， 默认关闭， 这个选项对于那些严重依赖类型提示的语言比较有用， 比如 Rust
@@ -308,6 +308,7 @@ lsp-bridge 针对许多语言都提供 2 个以上的语言服务器支持， �
 - `lsp-bridge-peek-ace-cancel-keys`: 退出 `lsp-bridge-peek-through` 的按键
 - `acm-frame-background-dark-color`: 暗色主题下的菜单背景颜色
 - `acm-frame-background-light-color`: 亮色主题下的菜单背景颜色
+- `acm-enable-capf`: 针对非 LSP 后端提供 capf 补全支持， 默认是关闭的
 - `acm-enable-doc`: 补全菜单是否显示帮助文档
 - `acm-enable-icon`: 补全菜单是否显示图标 (有很多 macOS 用户反馈 emacs-plus28 无法正常显示图标， 显示的是彩色方块， 有两种方法可以解决， 安装 Emacs Mac Port 或者自己编译 Emacs 的时候给 brew 命令增加选项 `--with-rsvg` )
 ， 重新编译了之后好像也没有用， 后来重新装了 emacs mac port
@@ -347,16 +348,18 @@ lsp-bridge 针对许多语言都提供 2 个以上的语言服务器支持， �
 
 你需要安装每个编程语言对应的 LSP 服务器， lsp-bridge 才能提供代码补全服务。
 
-如果你的语言支持混合多语言服务器, 建议查看 [multiserver](https://github.com/manateelazycat/lsp-bridge/tree/master/multiserver) 下的多语言服务器定义， 安装多个 LSP 服务器以获取更完整的体验， 比如 Python 语言， 按照默认的 [pyright-background-analysis_ruff.json](https://github.com/manateelazycat/lsp-bridge/tree/master/multiserver/pyright-background-analysis_ruff.json) 定义， 就应该安装 `pyright` 和 `ruff`。
+如果你的语言支持混合多语言服务器, 建议查看 [multiserver](https://github.com/manateelazycat/lsp-bridge/tree/master/multiserver) 下的多语言服务器定义， 安装多个 LSP 服务器以获取更完整的体验， 比如 Python 语言， 按照默认的 [basedpyright_ruff.json](https://github.com/manateelazycat/lsp-bridge/tree/master/multiserver/basedpyright_ruff.json) 定义， 就应该安装 `basedpyright` 和 `ruff`。
 
 | 语言        | LSP 服务器                                                                                         | 备注                                                                                                                                                                                                                          |
 |:------------|:---------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Ada         | [ada_language_server](https://github.com/AdaCore/ada_language_server)                      |                                                                 |
 | Ansible     | [ansible-language-server](https://github.com/ansible/ansible-language-server)                      | Ansible 使用 YAML 来编程， 你需要定制选项 `lsp-bridge-get-single-lang-server-by-project` 当工程是 Ansible 项目的路径时， 返回 "ansible-language-server" 字符串                                                                |
 | Astro       | [astro](https://github.com/withastro/language-tools/tree/main/packages/language-server)            | `npm i -g @astrojs/language-server`                                                                                                                                                                                           |
 | Bash        | [bash-language-server](https://github.com/bash-lsp/bash-language-server)                           |                                                                                                                                                                                                                               |
 | Beancount   | [beancount-language-server](https://github.com/polarmutex/beancount-language-server)               | `cargo install beancount-language-server`                                                                                                                                                                                       |
 | Clojure     | [clojure-lsp](https://github.com/clojure-lsp/clojure-lsp)                                          | 如果使用 `homebrew` 安装的， 请确保安装的是 `clojure-lsp/brew/clojure-lsp-native` [clojure-lsp-native](https://clojure-lsp.io/installation/#homebrew-macos-and-linux)                                                         |
 | Cmake       | [cmake-language-server](https://github.com/regen100/cmake-language-server)                         | `pip install cmake-language-server`                                                                                                                                                                                           |
+| Cobol       | [che-che4z-lsp-for-cobol](https://github.com/eclipse-che4z/che-che4z-lsp-for-cobol)                         |                                                                                                                                |
 | CSS         | [vscode-css-language-server](https://github.com/hrsh7th/vscode-langservers-extracted)              | `npm i -g vscode-langservers-extracted`                                                                                                                                                                                       |
 | C#          | [omnisharp-dotnet](https://github.com/OmniSharp/omnisharp-roslyn)                                  | OmniSharp 是 .NET 开发平台, 使用命令 `M-x lsp-bridge-install-omnisharp` 来安 OmniSharp, 默认是 `omnisharp-mono`. `lsp-bridge-csharp-lsp-server` 设置成 `omnisharp-dotnet`                                                     |
 |             | [omnisharp-mono](https://github.com/OmniSharp/omnisharp-roslyn)                                    | OmniSharp 是 .NET 开发平台, 使用命令 `M-x lsp-bridge-install-omnisharp` 来安 OmniSharp, 默认是 `omnisharp-mono`. `lsp-bridge-csharp-lsp-server` 设置成 `omnisharp-mono`                                                       |
@@ -374,24 +377,30 @@ lsp-bridge 针对许多语言都提供 2 个以上的语言服务器支持， �
 | Elm         | [elm-language-server](https://github.com/elm-tooling/elm-language-server)                          |                                                                                                                                                                                                                               |
 | Erlang      | [erlang-ls](https://github.com/erlang-ls/erlang_ls)                                                |                                                                                                                                                                                                                               |
 | Fortran     | [fortls](https://github.com/gnikit/fortls)                                                         |                                                                                                                                                                                                                               |
+| Futhark     | [futhark-lsp](https://futhark-lang.org)                                         |                                                                                                                                                                                                                               |
 | F#          | [fsautocomplete](https://github.com/fsharp/FsAutoComplete)                                         |                                                                                                                                                                                                                               |
 | Gleam       | [gleam lsp](https://gleam.run/news/v0.21-introducing-the-gleam-language-server/)                   |                                                                                                                                                                                                                               |
+| GLSL        | [glsl-language-server](https://github.com/svenstaro/glsl-language-server)                   |                                                                                                                                                                                                                               |
 | Go          | [gopls](https://github.com/golang/tools/tree/master/gopls)                                         | 确保安装 [go-mode](https://github.com/dominikh/go-mode.el)， 同时确保 `gopls` 在 PATH 环境变量中, 执行命令 `ln -s ~/go/bin/gopls ~/.local/bin`, 还要在补全之前执行 `go mod init` 命令                                           |
 | GraphQL     | [graphql-lsp](https://github.com/graphql/graphiql/tree/main/packages/graphql-language-service-cli) |                                                                                                                                                                                                                               |
 | Groovy      | [groovy-language-server](https://github.com/GroovyLanguageServer/groovy-language-server)           | 在 PATH 中创建一个名为 "groovy-language-server" 的脚本, 内容为 `$JAVA_HOME/bin/java -jar <path>/groovy-language-server-all.jar`                                                                                               |
 | Haskell     | [hls](https://github.com/haskell/haskell-language-server)                                          |                                                                                                                                                                                                                               |
+| HLASM     | [che-che4z-lsp-for-hlasm](https://github.com/eclipse-che4z/che-che4z-lsp-for-hlasm)                                          |                                                                                                                                                                                                                               |
 | HTML        | [vscode-html-language-server](https://github.com/hrsh7th/vscode-langservers-extracted)             | `npm i -g vscode-langservers-extracted`                                                                                                                                                                                       |
 | Java        | [eclipse.jdt.ls](https://projects.eclipse.org/projects/eclipse.jdt.ls)                             | 请确保导出 `org.eclipse.jdt.ls.product/target/repository/bin` 到你系统的 PATH 路径, 具体请看 [Wiki](https://github.com/manateelazycat/lsp-bridge/wiki/Eclipse-JDT-Language-Server)                                            |
 | Javascript  | [typescript](https://github.com/microsoft/TypeScript)             | `npm i -g typescript`                                                                                                                                                                                                                               |
 |             | [typescript-language-server](https://github.com/typescript-language-server/typescript-language-server) | `npm i -g typescript-language-server`                                                                                                                                                                                                                               |
 | JSON        | [vscode-json-language-server](https://github.com/hrsh7th/vscode-langservers-extracted)             | `npm i -g vscode-langservers-extracted`                                                                                                                                                                                       |
+| Jsonnet        | [jsonnet-language-server](https://github.com/grafana/jsonnet-language-server)             |                                                                                                                                                                                        |
 | Julia       | [julials](https://github.com/julia-vscode/LanguageServer.jl)                                       |                                                                                                                                                                                                                               |
 | Kotlin      | [kotlin-language-server](https://github.com/fwcd/kotlin-language-server)                           | Inlay Hint 功能需要自己编译源码的版本才能返回 Inlay Hint 信息                                                                                                                                                                 |
 | Latex       | [digestif](https://github.com/astoff/digestif)                                                     | `lsp-bridge-tex-lsp-server` 设置成 `digestif`                                                                                                                                                                                 |
 |             | [texlab](https://github.com/latex-lsp/texlab)                                                      | `lsp-bridge-tex-lsp-server` 设置成 `texlab`                                                                                                                                                                                   |
 | LESS        | [emmet-ls](https://github.com/aca/emmet-ls)                                                        | `npm install -g emmet-ls`                                                                                                                                                                                                     |
 | Lua         | [sumneko](https://github.com/sumneko/lua-language-server)                                          | 请确保导出 sumneko 的 `bin` 目录到你系统的 PATH 路径                                                                                                                                                                          |
+|             | [lua-lsp](https://github.com/Alloyed/lua-lsp)                                          |                                                                                                                                                                           |
 | Markdown    | [vale-ls](https://github.com/errata-ai/vale-ls)                                                    | 先安装 `vale`, 并在 vale-ls git 仓库中用 cargo 来构建 vale-ls, 并确保 vale-ls 添加到 PATH 中                                                                                                                                    |
+| Mint        | [mint-ls](https://www.mint-lang.com/)                                                           |                                                                                                                                                                                                |
 | Mojo        | [mojo](https://www.modular.com/max/mojo)                                                           | modular install mojo-lsp-server                                                                                                                                                                                               |
 | Move        | [move-analyzer](https://github.com/move-language/move)                                             | `move-analyzer` 包含在 move 语言仓库里                                                                                                                                                                                        |
 | Nickel      | [nls](https://crates.io/crates/nickel-lang-lsp/)                                                   | `cargo add nickel-lang-lsp`                                                                                                                                                                                                     |
@@ -403,10 +412,13 @@ lsp-bridge 针对许多语言都提供 2 个以上的语言服务器支持， �
 | Ocaml       | [ocamllsp](https://github.com/ocaml/ocaml-lsp)                                                     |                                                                                                                                                                                                                               |
 | Org-mode    | [ds-pinyin](https://github.com/iamcco/ds-pinyin-lsp)                                               | `cargo install ds-pinyin-lsp`, 下载 ds-pinyin 的 dict.db3 文件， 并保存到目录 ~/.emacs.d/ds-pinyin/ , 最后开启选项 `lsp-bridge-use-ds-pinyin-in-org-mode`                                                                     |
 |             | [Wen](https://github.com/metaescape/Wen)                                                           | `pip install pygls pypinyin`, 开启选项 `lsp-bridge-use-wenls-in-org-mode`                                                                                                                                                     |
+| Perl        | [perl-language-server](https://github.com/richterger/Perl-LanguageServer)                          |                                                                                                                                                                                                       |
 | PHP         | [intelephense](https://github.com/bmewburn/vscode-intelephense)                                    | `npm i intelephense -g`                                                                                                                                                                                                       |
 |             | [Phpactor](https://github.com/phpactor/phpactor)                                                   | lsp-bridge-php-lsp-server 设置成 `phpactor`                                                                                                                                                                                   |
+| PureScript  | [purescript-language-server](https://github.com/nwolverson/purescript-language-server)                                           |                                                                         |
 | Python      | [jedi](https://github.com/pappasam/jedi-language-server)                                           | `lsp-bridge-python-lsp-server` 设置成 `jedi`                                                                                                                                                                                  |
 |             | [pylsp](https://github.com/python-lsp/python-lsp-server)                                           | lsp-bridge-python-lsp-server 设置成 `pylsp`                                                                                                                                                                                   |
+|             | [basedpyright](https://detachhead.github.io/basedpyright)                                          | `pip install basedpyright`, `lsp-bridge-python-lsp-server` 设置成 `basedpyright`                                                                                             |
 |             | [pyright](https://github.com/microsoft/pyright)                                                    | `pip install pyright`, `lsp-bridge-python-lsp-server` 设置成 `pyright`, `pyright-background-analysis` 更快， 但是无法返回诊断信息                                                                                             |
 |             | [python-ms](https://github.com/microsoft/python-language-server)                                   | 支持 Python2 的 lsp                                                                                                                                                                                                           |
 |             | [ruff](https://github.com/charliermarsh/ruff-lsp)                                                  | `pip install ruff-lsp`， `lsp-bridge-python-lsp-server` 设置成 `ruff`， 只具备 linter 的功能。 如需补全等功能， 安装其他的 Python 语言服务器， 并把 `lsp-bridge-python-multi-lsp-server` 设置成 `[相应的语言服务器名称]_ruff` |
@@ -423,12 +435,14 @@ lsp-bridge 针对许多语言都提供 2 个以上的语言服务器支持， �
 | Svelte      | [svelte](https://github.com/sveltejs/language-tools/tree/master/packages/language-server)          |                                                                                                                                                                                                                               |
 | Swift       | [sourcekit-lsp](https://github.com/apple/sourcekit-lsp)                                            | Sourcekit-lsp 包含在 swift toolchain 中。                                                                                                                                                                                     |
 | Tailwindcss | [tailwindcss-language-server](https://www.npmjs.com/package/@tailwindcss/language-server)          | `npm install -g @tailwindcss/language-server` , 还需要按照 [官方文档](https://tailwindcss.com/docs/installation) 配置 tailwind.config.js                                                                                        |
+| Terraform | [terraform-ls](https://github.com/hashicorp/terraform-ls)          |                                                                        |
 | Typescript  | [typescript](https://github.com/typescript-language-server/typescript-language-server)             |                                                                                                                                                                                                                               |
 | Typst       | [typst-lsp](https://github.com/nvarner/typst-lsp)                                                  |                                                                                                                                                                                                                               |
 | Verilog     | [verible](https://github.com/chipsalliance/verible)                                                |                                                                                                                                                                                                                               |
 | VHDL        | [vhdl-tool](https://www.vhdltool.com)                                                              |                                                                                                                                                                                                                               |
 | Vue         | [volar](https://github.com/johnsoncodehk/volar)                                                    | `npm install -g typescript @vue/language-server`                                                                                                                                                                              |
 | Wxml        | [wxml-language-server](https://github.com/chemzqm/wxml-languageserver)                             |                                                                                                                                                                                                                               |
+| Yang        | [yang-ls](https://github.com/TypeFox/yang-lsp)                   |                                                                                                                                                                                          |
 | Yaml        | [yaml-language-server](https://github.com/redhat-developer/yaml-language-server)                   | `npm install -g yaml-language-server`                                                                                                                                                                                         |
 | Zig         | [zls](https://github.com/zigtools/zls)                                                             | 运行 `zls config` 来生成 zls 的配置。 参考 [Configuration Options](https://github.com/zigtools/zls#configuration-options)                                                                                                     |
 | Solidity    | [solidity-language-server](https://github.com/NomicFoundation/hardhat-vscode)                      | `npm install -g @nomicfoundation/solidity-language-server`， 参考 [Solidity Language Server](https://github.com/NomicFoundation/hardhat-vscode/blob/development/server/README.md)                                             |                                               | `npm install -g emmet-ls`                                                                                                                                                                                                      |

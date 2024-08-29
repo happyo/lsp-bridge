@@ -126,15 +126,15 @@ def get_buffer_content(filename, buffer_name):
     global lsp_bridge_server
 
     if lsp_bridge_server and lsp_bridge_server.file_server:
-        return lsp_bridge_server.file_server.file_dict[filename]
+        return lsp_bridge_server.file_server.get_file_content(filename)
     else:
         return get_emacs_func_result('get-buffer-content', buffer_name)
 
 def get_file_content_from_file_server(filename):
     global lsp_bridge_server
 
-    if lsp_bridge_server and lsp_bridge_server.file_server and filename in lsp_bridge_server.file_server.file_dict:
-        return lsp_bridge_server.file_server.file_dict[filename]
+    if lsp_bridge_server and lsp_bridge_server.file_server:
+        return lsp_bridge_server.file_server.get_file_content(filename)
     else:
         return ""
 
@@ -362,7 +362,17 @@ def get_project_path(filepath):
         import os
         dir_path = os.path.dirname(filepath)
         if get_command_result("git rev-parse --is-inside-work-tree", dir_path) == "true":
-            return get_command_result("git rev-parse --show-toplevel", dir_path)
+            path_from_git = get_command_result("git rev-parse --show-toplevel", dir_path)
+            if get_os_name() == "windows":
+                path_parts = path_from_git.split("/")
+                # if this is a Unix-style absolute path, which should be a Windows-style one
+                if path_parts[0] == "/": 
+                    windows_path = path_parts[1] + ":/" + "/".join(path_parts[2:])
+                    return windows_path
+                else:
+                    return path_from_git
+            else:
+                return path_from_git
         else:
             return filepath
 
@@ -509,13 +519,33 @@ def remove_duplicate_references(data):
             result.append(item)
     return result
 
+# def get_nested_value(dct, keys):
+#     for key in keys:
+#         try:
+#             dct = dct[key]
+#         except (KeyError, TypeError):
+#             return None
+#     return dct
+
 def get_nested_value(dct, keys):
+    '''
+    keys: ["k1", "k2", ...]匹配一组， [["k1", "k2", ...], [], ...]匹配多组情况
+    '''
+    value = None
     for key in keys:
         try:
-            dct = dct[key]
+            if isinstance(key, list):
+                value = get_nested_value(dct, key)
+                if value:
+                    break
+            else:
+                dct = dct[key]
         except (KeyError, TypeError):
-            return None
-    return dct
+            dct = None
+            break
+
+    return value if value else dct
+
 
 class MessageSender(Thread):
 

@@ -150,12 +150,12 @@ Here is a compelte configuration example
 
 ``` json
 {
-    "name": "Node.js & TypeScript",
+    "name": "Ubuntu",
     // Your base image
-    "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bullseye",
+    "image": "mcr.microsoft.com/devcontainers/base:jammy",
     // Features to add to the dev container. More info: https://containers.dev/features.
     "features": {
-        "ghcr.io/nohzafk/devcontainer-feature-emacs-lsp-bridge/pyright-background-analysis_ruff:latest": {}
+        "ghcr.io/nohzafk/devcontainer-feature-emacs-lsp-bridge/gleam:latest": {}
     },
     "forwardPorts": [
         9997,
@@ -163,28 +163,31 @@ Here is a compelte configuration example
         9999
     ],
     // More info: https://aka.ms/dev-containers-non-root.
-    "remoteUser": "root"
+    "remoteUser": "vscode"
 }
 ```
 
 start the devcontainer and use `file-find` `/docker:user@container:/path/to/file` to open the file.
 
-more detail please refer to [devcontainer-feature-emacs-lsp-bridge](https://github.com/nohzafk/devcontainer-feature-emacs-lsp-bridge).
-
 If you use `apheleia` as formatter, `lsp-bridge` now support auto formatting file on devcontainer.
+```elisp
+;; setup PATH for remote command execution
+(with-eval-after-load 'tramp
+  (add-to-list 'tramp-remote-path "~/.nix-profile/bin")
+  (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
 
-```elsip
-(use-package! apheleia
+(use-package apheleia
   :config
-  (setq +format-with-lsp nil)
   ;; which formatter to use
   (setf (alist-get 'python-mode apheleia-mode-alist) 'ruff)
   (setf (alist-get 'python-ts-mode apheleia-mode-alist) 'ruff)
-
-  (setq apheleia-remote-algorithm 'local)
-  (after! lsp-bridge
-    (add-hook 'apheleia-post-format-hook #'lsp-bridge-update-tramp-docker-file-mod-time)))
+  ;; don't mess up with lsp-mode
+  (setq +format-with-lsp nil)
+  ;; run the formatter inside container
+  (setq apheleia-remote-algorithm 'remote))
 ```
+
+more detail about using lsp-bridge in devcontainer please refer to [emacs-devcontainer](https://github.com/nohzafk/emacs-devcontainer).
 
 ## Keymap
 
@@ -259,13 +262,14 @@ lsp-bridge provides support for more than two language servers for many language
 
 - `lsp-bridge-c-lsp-server`: C language server, you can choose `clangd` or`ccls`
 - `lsp-bridge-elixir-lsp-server`: Elixir language server, you can choose `elixirLS`(default), `lexical` or `nextls`
-- `lsp-bridge-python-lsp-server`: Python language server, you can choose `pyright`, `jedi`, `python-ms`, `pylsp`, `ruff`, it's important to note that lsp-bridge-multi-lang-server-mode-list has a higher priority than lsp-bridge-single-lang-server-mode-list. If you only want to use a single server, please first remove the python-mode setting from lsp-bridge-multi-lang-server-mode-list.
+- `lsp-bridge-python-lsp-server`: Python language server, you can choose `basedpyright`, `pyright`, `jedi`, `python-ms`, `pylsp`, `ruff`, it's important to note that lsp-bridge-multi-lang-server-mode-list has a higher priority than lsp-bridge-single-lang-server-mode-list. If you only want to use a single server, please first remove the python-mode setting from lsp-bridge-multi-lang-server-mode-list.
 - `lsp-bridge-php-lsp-server`: PHP language server, you can choose `intelephense` or `phpactor`
 - `lsp-bridge-tex-lsp-server`: LaTeX language server, you can choose `texlab` or`digestif`
 - `lsp-bridge-csharp-lsp-server`: C# language server, you can choose `omnisharp-mono`, `omnisharp-dotnet` or `csharp-ls`, note that you need to give **execute permissions** to the OmniSharp file
-- `lsp-bridge-python-multi-lsp-server`: Python multi-language servers, you can choose `pyright_ruff`, `jedi_ruff`, `python-ms_ruff`, `pylsp_ruff`
+- `lsp-bridge-python-multi-lsp-server`: Python multi-language servers, you can choose `basedpyright_ruff`, `pyright_ruff`, `jedi_ruff`, `python-ms_ruff`, `pylsp_ruff`
 - `lsp-bridge-nix-lsp-server`: Nix language server, you can choose `rnix-lsp`, `nixd` or `nil`
-- `lsp-bridge-markdown-lsp-server`: Markdown language server, you can choose `vale-ls` or `nil`
+- `lsp-bridge-markdown-lsp-server`: Markdown language server, you can choose `vale-ls` or `marksman` 
+- `lsp-bridge-lua-lsp-server`: Lua language server, you can choose `sumneko` or `lua-lsp` 
 
 ## Options
 
@@ -280,7 +284,7 @@ lsp-bridge provides support for more than two language servers for many language
 - `lsp-bridge-find-def-fallback-function`: When LSP cannot find a definition, you can customize this function for candidate jumping, such as binding the citre function
 - `lsp-bridge-find-ref-fallback-function`: When LSP cannot find a reference, you can customize this function for candidate jumping, such as binding the citre  function
 - `lsp-bridge-find-def-select-in-open-windows`: If this option is turned on, when searching for function definitions, already open windows will be selected instead of switching buffers. disable by default
-- `lsp-bridge-enable-completion-in-string`: Enable completion pop-up within strings, default is off
+- `lsp-bridge-enable-completion-in-string`: Enable completion pop-up within strings, disabled by default, if you only want to show completion popups in strings for certain languages, please customize the option `lsp-bridge-completion-in-string-file-types`
 - `lsp-bridge-enable-completion-in-minibuffer`: Enable pop-completion up in Minibuffer, disabled by default
 - `lsp-bridge-enable-diagnostics`: code diagnostic, enable by default
 - `lsp-bridge-enable-inlay-hint`: inlay hint, disable by default, this option is use for strong type language, such as, Rust
@@ -309,6 +313,7 @@ lsp-bridge provides support for more than two language servers for many language
 - `lsp-bridge-peek-ace-cancel-keys`: Keys to exit `lsp-bridge-peek-through`
 - `acm-frame-background-dark-color`: Menu background color in dark theme
 - `acm-frame-background-light-color`: Menu background color in light theme
+- `acm-enable-capf`: Provides capf completion support for non-LSP backends, it is disabled by default
 - `acm-enable-doc`: Whether the complete menu display the help document
 - `acm-enable-doc-markdown-render`: Richly render Markdown for completion popups, you can choose `'async`, `t` or `nil`. When set to `'async`, styles are applied asynchronously, choose `t`, styles are applied synchronously and will slow down the completion speed, default is `'async`
 - `acm-enable-icon`: Whether the completion menu displays icons (Many macOS users have reported that emacs-plus28 cannot display icons properly, showing colored squares instead. There are two ways to solve this: install Emacs Mac Port or add the `--with-rsvg` option to the brew command when compiling Emacs yourself)
@@ -347,16 +352,18 @@ lsp-bridge provides support for more than two language servers for many language
 
 You need to install the LSP server corresponding to each programming language, then lsp-bridge can provide code completion service.
 
-If your language supports mixed multi-language servers, it is recommended to check the multi-language server definition under [multiserver](https://github.com/manateelazycat/lsp-bridge/tree/master/multiserver), and install multiple LSP servers to get a more complete experience. For example, for the Python language, according to the default [pyright-background-analysis_ruff.json](https://github.com/manateelazycat/lsp-bridge/tree/master/multiserver/pyright-background-analysis_ruff.json) definition, you should install `pyright` and `ruff`.
+If your language supports mixed multi-language servers, it is recommended to check the multi-language server definition under [multiserver](https://github.com/manateelazycat/lsp-bridge/tree/master/multiserver), and install multiple LSP servers to get a more complete experience. For example, for the Python language, according to the default [basedpyright_ruff.json](https://github.com/manateelazycat/lsp-bridge/tree/master/multiserver/basedpyright_ruff.json) definition, you should install `basedpyright` and `ruff`.
 
 | Language    | LSP Server                                                                                         | Note                                                                                                                                                                                                                                                                |
 |:------------|:---------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Ada         | [ada_language_server](https://github.com/AdaCore/ada_language_server)                      |                                                                 |
 | Ansible     | [ansible-language-server](https://github.com/ansible/ansible-language-server)                      | Ansible uses YAML as source code, you’ll need to customize `lsp-bridge-get-single-lang-server-by-project` to return "ansible-language-server".                                                                                                                      |
 | Astro       | [astro](https://github.com/withastro/language-tools/tree/main/packages/language-server)            | `npm i -g @astrojs/language-server`                                                                                                                                                                                                                                 |
 | Bash        | [bash-language-server](https://github.com/bash-lsp/bash-language-server)                           |                                                                                                                                                                                                                                                                     |
 | Beancount   | [beancount-language-server](https://github.com/polarmutex/beancount-language-server)               | `cargo install beancount-language-server`                                                                                                                                                                                                                             |
 | Clojure     | [clojure-lsp](https://github.com/clojure-lsp/clojure-lsp)                                          | If you use `homebrew`, please ensure install `clojure-lsp/brew/clojure-lsp-native` [clojure-lsp-native](https://clojure-lsp.io/installation/#homebrew-macos-and-linux)                                                                                             |
 | Cmake       | [cmake-language-server](https://github.com/regen100/cmake-language-server)                         | `pip install cmake-language-server`                                                                                                                                                                                                                                 |
+| Cobol       | [che-che4z-lsp-for-cobol](https://github.com/eclipse-che4z/che-che4z-lsp-for-cobol)                         |                                                                                                                                |
 | CSS         | [vscode-css-language-server](https://github.com/hrsh7th/vscode-langservers-extracted)              | `npm i -g vscode-langservers-extracted`                                                                                                                                                                                                                             |
 | C#          | [csharp-ls](https://github.com/razzmatazz/csharp-language-server)                                    | Use command `dotnet tool install -g csharp-ls` install csharp-ls, `lsp-bridge-csharp-lsp-server` set to `csharp-ls`                                                                                   |
 |             | [omnisharp-dotnet](https://github.com/OmniSharp/omnisharp-roslyn)                                  | OmniSharp is a .NET development platform based on Roslyn workspaces. use `M-x lsp-bridge-install-omnisharp` to install it. `lsp-bridge-csharp-lsp-server` set to `omnisharp-dotnet` (6.0)                                                                           |
@@ -375,24 +382,30 @@ If your language supports mixed multi-language servers, it is recommended to che
 | Elm         | [elm-language-server](https://github.com/elm-tooling/elm-language-server)                          |                                                                                                                                                                                                                                                                     |
 | Erlang      | [erlang-ls](https://github.com/erlang-ls/erlang_ls)                                                |                                                                                                                                                                                                                                                                     |
 | Fortran     | [fortls](https://github.com/gnikit/fortls)                                                         |                                                                                                                                                                                                                                                                     |
+| Futhark     | [futhark-lsp](https://futhark-lang.org)                                         |                                                                                                                                                                                                                               |
 | F#          | [fsautocomplete](https://github.com/fsharp/FsAutoComplete)                                         |                                                                                                                                                                                                                                                                     |
-| Gleam       | [gleam lsp](https://gleam.run/news/v0.21-introducing-the-gleam-language-server/)                   |                                                                                                                                                                                                                                                                     |
+| Gleam       | [gleam lsp](https://gleam.run/news/v0.21-introducing-the-gleam-language-server/)                   |                                                                                                                                                                                
+| GLSL        | [glsl-language-server](https://github.com/svenstaro/glsl-language-server)                   |                                                                                                                                                                                                                               |
 | Go          | [gopls](https://github.com/golang/tools/tree/master/gopls)                                         | Make sure install [go-mode](https://github.com/dominikh/go-mode.el) and `gopls` in PATH, please do `ln -s ~/go/bin/gopls ~/.local/bin`, and do `go mod init` first                                                                                                    |
 | GraphQL     | [graphql-lsp](https://github.com/graphql/graphiql/tree/main/packages/graphql-language-service-cli) |                                                                                                                                                                                                                                                                     |
 | Groovy      | [groovy-language-server](https://github.com/GroovyLanguageServer/groovy-language-server)           | Create a script "groovy-language-server" in PATH, with `$JAVA_HOME/bin/java -jar <path>/groovy-language-server-all.jar`                                                                                                                                             |
 | Haskell     | [hls](https://github.com/haskell/haskell-language-server)                                          |                                                                                                                                                                                                                                                                     |
+| HLASM     | [che-che4z-lsp-for-hlasm](https://github.com/eclipse-che4z/che-che4z-lsp-for-hlasm)                                          |                                                                                                                                                                                                                               |
 | HTML        | [vscode-html-language-server](https://github.com/hrsh7th/vscode-langservers-extracted)             | `npm i -g vscode-langservers-extracted`                                                                                                                                                                                                                             |
 | Java        | [eclipse.jdt.ls](https://projects.eclipse.org/projects/eclipse.jdt.ls)                             | Please ensure that `org.eclipse.jdt.ls.product/target/repository/bin` is in your system PATH at first, please see the details at [Wiki](https://github.com/manateelazycat/lsp-bridge/wiki/Eclipse-JDT-Language-Server)                                              |
 | Javascript       | [typescript](https://github.com/microsoft/TypeScript)                                               | `npm i -g typescript`                                                                                                                                                                                                                                                |
 |             | [typescript-language-server](https://github.com/typescript-language-server/typescript-language-server) | `npm i -g typescript-language-server`                                                                                                                                                                                                                               |
 | JSON        | [vscode-json-language-server](https://github.com/hrsh7th/vscode-langservers-extracted)             | `npm i -g vscode-langservers-extracted`                                                                                                                                                                                                                             |
+| Jsonnet        | [jsonnet-language-server](https://github.com/grafana/jsonnet-language-server)             |                                                                                                                                                                                        |
 | Julia       | [julials](https://github.com/julia-vscode/LanguageServer.jl)                                       |                                                                                                                                                                                                                                                                     |
 | Kotlin      | [kotlin-language-server](https://github.com/fwcd/kotlin-language-server)                           | If you want Inlay Hints feature, you need build with source code to return Inlay Hint information                                                                                                                                                                   |
 | Latex       | [digestif](https://github.com/astoff/digestif)                                                     | `lsp-bridge-tex-lsp-server` set to `digestif`                                                                                                                                                                                                                       |
 |             | [texlab](https://github.com/latex-lsp/texlab)                                                      | `lsp-bridge-tex-lsp-server` set to `texlab`                                                                                                                                                                                                                         |
 | LESS        | [emmet-ls](https://github.com/aca/emmet-ls)                                                        | `npm install -g emmet-ls`                                                                                                                                                                                                                                           |
 | Lua         | [sumneko](https://github.com/sumneko/lua-language-server)                                          | Please ensure `bin` under sumneko installation is in your system PATH at first                                                                                                                                                                                      |
+|             | [lua-lsp](https://github.com/Alloyed/lua-lsp)                                          |                                                                                                                                                                           |
 | Markdown    | [vale-ls](https://github.com/errata-ai/vale-ls)                                                    | Install `vale` first, then use `cargo build` and install `vale-ls` from github, and make sure `vale-ls` in PATH                                                                                                                                                             |
+| Mint        | [mint-ls](https://www.mint-lang.com/)                                                           |                                                                                                                                                                                                |
 | Mojo        | [mojo](https://www.modular.com/max/mojo)                                                           | modular install `mojo-lsp-server`                                                                                                                                                                                                                                     |
 | Move        | [move-analyzer](https://github.com/move-language/move)                                             | The `move-analyzer` is included in the move language repository                                                                                                                                                                                                     |
 | Nickel      | [nls](https://crates.io/crates/nickel-lang-lsp/)                                                   | `cargo add nickel-lang-lsp`                                                                                                                                                                                                                                           |
@@ -404,10 +417,13 @@ If your language supports mixed multi-language servers, it is recommended to che
 | Ocaml       | [ocamllsp](https://github.com/ocaml/ocaml-lsp)                                                     |                                                                                                                                                                                                                                                                     |
 | Org-mode    | [ds-pinyin](https://github.com/iamcco/ds-pinyin-lsp)                                               | `cargo install ds-pinyin-lsp`, download `dict.db3` of `ds-pinyin`, and save to `~/.emacs.d/ds-pinyin/` directory, then turn on option `lsp-bridge-use-ds-pinyin-in-org-mode`                                                                                              |
 |             | [Wen](https://github.com/metaescape/Wen)                                                           | `pip install pygls pypinyin`, then turn on option `lsp-bridge-use-wenls-in-org-mode`                                                                                                                                                                                |
+| Perl        | [perl-language-server](https://github.com/richterger/Perl-LanguageServer)                          |                                                                                                                                                                                                       |
 | PHP         | [intelephense](https://github.com/bmewburn/vscode-intelephense)                                    | `npm i intelephense -g`                                                                                                                                                                                                                                             |
 |             | [Phpactor](https://github.com/phpactor/phpactor)                                                   | `lsp-bridge-php-lsp-server` set to `phpactor`                                                                                                                                                                                                                         |
+| PureScript  | [purescript-language-server](https://github.com/nwolverson/purescript-language-server)                                           |                                                                         |
 | Python      | [jedi](https://github.com/pappasam/jedi-language-server)                                           | `lsp-bridge-python-lsp-server` set to `jedi`                                                                                                                                                                                                                        |
 |             | [pylsp](https://github.com/python-lsp/python-lsp-server)                                           | `lsp-bridge-python-lsp-server` set to `pylsp`                                                                                                                                                                                                                        |
+|             | [basedpyright](https://detachhead.github.io/basedpyright)                                                    | `pip install basedpyright`, `lsp-bridge-python-lsp-server` set to `basedpyright`                                                                                                                   |
 |             | [pyright](https://github.com/microsoft/pyright)                                                    | `lsp-bridge-python-lsp-server` set to `pyright`, `pyright-background-analysis` is faster sometimes, but it can’t response diagnostic informations                                                                                                                   |
 |             | [python-ms](https://github.com/microsoft/python-language-server)                                   | Legacy language server for Python2                                                                                                                                                                                                                                  |
 |             | [ruff](https://github.com/charliermarsh/ruff-lsp)                                                  | `pip install ruff-lsp`, `lsp-bridge-python-lsp-server` is set to `ruff`, which only has the function of linter. If you need to complete the functions, install other Python language servers, and set the `lsp-bridge-python-multi-lsp-server` to `[LSP NAME]_ruff` |
@@ -424,12 +440,14 @@ If your language supports mixed multi-language servers, it is recommended to che
 | Svelte      | [svelte](https://github.com/sveltejs/language-tools/tree/master/packages/language-server)          |                                                                                                                                                                                                                                                                     |
 | Swift       | [sourcekit-lsp](https://github.com/apple/sourcekit-lsp)                                            | The SourceKit-LSP server is included with the Swift toolchain.                                                                                                                                                                                                      |
 | Tailwindcss | [tailwindcss-language-server](https://www.npmjs.com/package/@tailwindcss/language-server)          | `npm install -g @tailwindcss/language-server` , and need config `tailwind.config.js` follow [install manual](https://tailwindcss.com/docs/installation)                                                                                                                 |
+| Terraform | [terraform-ls](https://github.com/hashicorp/terraform-ls)          |                                                                        |
 | Typescript  | [typescript](https://github.com/typescript-language-server/typescript-language-server)             |                                                                                                                                                                                                                                                                     |
 | Typst       | [typst-lsp](https://github.com/nvarner/typst-lsp)                                                  |                                                                                                                                                                                                                                                                     |
 | Verilog     | [verible](https://github.com/chipsalliance/verible)                                                |                                                                                                                                                                                                                                                                     |
 | VHDL        | [vhdl-tool](https://www.vhdltool.com)                                                              |                                                                                                                                                                                                                                                                     |
 | Vue         | [volar](https://github.com/johnsoncodehk/volar)                                                    | `npm install -g typescript @vue/language-server`                                                                                                                                                                                                                    |
 | Wxml        | [wxml-language-server](https://github.com/chemzqm/wxml-languageserver)                             |                                                                                                                                                                                                                                                                     |
+| Yang        | [yang-ls](https://github.com/TypeFox/yang-lsp)                   |                                                                                                                                                                                          |
 | Yaml        | [yaml-language-server](https://github.com/redhat-developer/yaml-language-server)                   | `npm install -g yaml-language-server`                                                                                                                                                                                                                               |
 | Zig         | [zls](https://github.com/zigtools/zls)                                                             | Execute `zls config` to generate configuration for `zls`. see [Configuration Options](https://github.com/zigtools/zls#configuration-options)                                                                                                                          |
 | Solidity    | [solidity-language-server](https://github.com/NomicFoundation/hardhat-vscode)                      | `npm install -g @nomicfoundation/solidity-language-server`. see [Solidity Language Server](https://github.com/NomicFoundation/hardhat-vscode/blob/development/server/README.md)                                                                                     |
