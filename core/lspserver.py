@@ -30,6 +30,8 @@ from subprocess import PIPE
 from sys import stderr
 from typing import TYPE_CHECKING, Dict
 from urllib.parse import urlparse
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 from core.handler import Handler
 from core.mergedeep import merge
@@ -41,6 +43,34 @@ from core.utils import *
 DEFAULT_BUFFER_SIZE = 100000000  # we need make buffer size big enough, avoid pipe hang by big data response from LSP server
 
 INLAY_HINT_REQUEST_ID_DICT = {}
+
+class MultiFileHandler(FileSystemEventHandler):
+    def __init__(self, lsp_server):
+        self.lsp_server = lsp_server
+        self.file_path_dict = {}
+        self.dir_path_dict = {}
+
+    def add_file(self, file_path):
+        self._add_to_dict(self.file_path_dict, file_path)
+
+    def add_dir(self, dir_path):
+        self._add_to_dict(self.dir_path_dict, dir_path)
+
+    def _add_to_dict(self, dictionary, path):
+        dictionary[os.path.abspath(path)] = path
+
+    def on_created(self, event):
+        self._handle_event(event, 1)
+
+    def on_modified(self, event):
+        self._handle_event(event, 2)
+
+    def on_deleted(self, event):
+        self._handle_event(event, 3)
+
+    def _handle_event(self, event, change_type):
+        if not event.is_directory and event.src_path in self.file_path_dict:
+            self.lsp_server.send_workspace_did_change_watched_files(event.src_path, change_type)
 
 class LspServerSender(MessageSender):
     def __init__(self, process: subprocess.Popen, server_name, project_name):
@@ -82,18 +112,21 @@ class LspServerSender(MessageSender):
         ), **kwargs)
 
     def send_message(self, message: dict):
-        json_content = json.dumps(message)
+        # message_type is not valid key of JSONRPC, we need remove message_type before send LSP server.
+        message_type = message.get("message_type")
+        message.pop("message_type")
 
+        # Parse json content.
+        json_content = json.dumps(message)
         message_str = "Content-Length: {}\r\n\r\n{}".format(len(json_content), json_content)
 
+        # Send to LSP server.
         self.process.stdin.write(message_str.encode("utf-8"))    # type: ignore
         self.process.stdin.flush()    # type: ignore
 
         # InlayHint will got error 'content modified' error if it followed immediately by a didChange request.
         # So we need INLAY_HINT_REQUEST_ID_DICT to contain documentation path to send retry request.
         record_inlay_hint_request(message)
-
-        message_type = message.get("message_type")
 
         if message_type == "request" and \
            not message.get('method', 'response') == 'textDocument/documentSymbol':
@@ -251,8 +284,12 @@ class LspServer:
         self.workspace_symbol_provider = False
         self.inlay_hint_provider = False
         self.semantic_tokens_provider = False
+        self.save_file_provider = False
 
         self.work_done_progress_title = ""
+
+        self.workspace_file_watcher = None
+        self.workspace_file_watch_handler = None
 
         self.code_action_kinds = [
             "quickfix",
@@ -266,11 +303,15 @@ class LspServer:
         self.save_include_text = False
 
         # Start LSP server.
+        cwd = self.project_path
+        if os.path.isfile(self.project_path): # single file
+            cwd = os.path.dirname(self.project_path)
         self.lsp_subprocess = subprocess.Popen(self.server_info["command"],
                                                bufsize=DEFAULT_BUFFER_SIZE,
                                                stdin=PIPE,
                                                stdout=PIPE,
-                                               stderr=stderr)
+                                               stderr=stderr,
+                                               cwd=cwd)
 
         # Two separate thread (read/write) to communicate with LSP server.
         self.receiver = LspServerReceiver(self.lsp_subprocess, self.server_info["name"])
@@ -337,6 +378,10 @@ class LspServer:
                     "resolveSupport": {
                         "properties": []
                     }
+                },
+                "didChangeWatchedFiles": {
+                    "dynamicRegistration": True,
+                    "relativePatternSupport": True
                 }
             },
             "textDocument": {
@@ -374,7 +419,23 @@ class LspServer:
                 },
                 "inlayHint": {
                     "dynamicRegistration": False
-                }
+                },
+                "hover": {
+                    "contentFormat": [
+                        "markdown",
+                        "plaintext"
+                    ],
+                    "dynamicRegistration": True
+                },
+                "formatting": {
+                    "dynamicRegistration": True
+                },
+                "rangeFormatting": {
+                    "dynamicRegistration": True
+                },
+                "onTypeFormatting": {
+                    "dynamicRegistration": True
+                },
             },
             "window": {
                 "workDoneProgress": True
@@ -481,21 +542,30 @@ class LspServer:
         })
 
     def send_did_save_notification(self, filepath, buffer_name):
-        args = {
-            "textDocument": {
-                "uri": path_to_uri(filepath)
-            }
-        }
-
-        # Fetch buffer whole content to LSP server if server capability 'includeText' is True.
-        if self.save_include_text:
-            args = merge(args, {
+        if self.save_file_provider:
+            args = {
                 "textDocument": {
-                    "text": get_buffer_content(filepath, buffer_name)
+                    "uri": path_to_uri(filepath)
                 }
-            })
+            }
 
-        self.sender.send_notification("textDocument/didSave", args)
+            # Fetch buffer whole content to LSP server if server capability 'includeText' is True.
+            if self.save_include_text:
+                args = merge(args, {
+                    "textDocument": {
+                        "text": get_buffer_content(filepath, buffer_name)
+                    }
+                })
+
+            self.sender.send_notification("textDocument/didSave", args)
+
+    def send_workspace_did_change_watched_files(self, filepath, change_type):
+        self.sender.send_notification("workspace/didChangeWatchedFiles", {
+            "changes": [{
+                "uri": path_to_uri(filepath),
+                "type": change_type
+            }]
+        })
 
     def send_did_change_notification(self, filepath, version, start, end, range_length, text):
         # STEP 5: Tell LSP server file content is changed.
@@ -693,7 +763,8 @@ class LspServer:
             ]),
             ("save_include_text", ["result", "capabilities", "textDocumentSync", "save", "includeText"]),
             ("text_document_sync", ["result", "capabilities", "textDocumentSync"]),
-            ("semantic_tokens_provider", ["result", "capabilities", "semanticTokensProvider"])]
+            ("semantic_tokens_provider", ["result", "capabilities", "semanticTokensProvider"]),
+            ("save_file_provider", ["result", "capabilities", "textDocumentSync", "willSave"])]
 
         for attr, path in attributes_to_set:
             self.set_attribute_from_message(message, attr, path)
@@ -789,6 +860,14 @@ class LspServer:
 
     def handle_register_capability_message(self, message):
         if "method" in message and message["method"] in ["client/registerCapability"]:
+            try:
+                if message["params"]["registrations"][0]["id"] == "workspace/didChangeWatchedFiles":
+                    workspace_watch_files = self.parse_workspace_watch_files(message["params"])
+                    self.monitor_workspace_files(workspace_watch_files)
+                    log_time("Add workspace watch files: {}".format(workspace_watch_files))
+            except:
+                log_time(traceback.format_exc())
+
             self.sender.send_response(message["id"], None)
 
     def handle_recv_message(self, message: dict):
@@ -805,6 +884,83 @@ class LspServer:
 
         logger.debug(json.dumps(message, indent=3))
 
+    def start_workspace_watch_files(self):
+        if self.workspace_file_watcher is None:
+            self.workspace_file_watcher = Observer()
+            self.workspace_file_watcher.start()
+
+        if self.workspace_file_watch_handler is None:
+            self.workspace_file_watch_handler = MultiFileHandler(self)
+
+    def stop_workspace_watch_files(self):
+        if self.workspace_file_watcher:
+            self.workspace_file_watcher.unschedule_all()
+            self.workspace_file_watcher.stop()
+
+            self.workspace_file_watcher = None
+            self.workspace_file_watch_handler = None
+
+    def monitor_workspace_files(self, file_paths):
+        if len(file_paths) > 0:
+            # Init workspace watch files vars.
+            self.start_workspace_watch_files()
+
+            # Add workspace file in monitor list.
+            for file_path in file_paths:
+                # Add file path in notify list.
+                self.workspace_file_watch_handler.add_file(file_path)
+
+                # Only monitor directory once.
+                target_dir = os.path.dirname(file_path)
+                if target_dir not in self.workspace_file_watch_handler.dir_path_dict:
+                    self.workspace_file_watcher.schedule(self.workspace_file_watch_handler, target_dir, recursive=False)
+                    self.workspace_file_watch_handler.add_dir(target_dir)
+
+    def parse_workspace_watch_files(self, params):
+        patterns = []
+        for registration in params['registrations']:
+            if registration.get('method') == 'workspace/didChangeWatchedFiles':
+                watchers = registration.get('registerOptions', {}).get('watchers', [])
+                for watcher in watchers:
+                    glob_pattern = watcher.get('globPattern', {})
+                    if isinstance(glob_pattern, str):
+                        if not glob_pattern.startswith('**/**.'):
+                            patterns.append(glob_pattern)
+                    elif isinstance(glob_pattern, dict):
+                        base_uri = glob_pattern.get('baseUri', '')
+                        pattern = glob_pattern.get('pattern', '')
+
+                        # Filter **/*.ext rule.
+                        if pattern.startswith('**/*.'):
+                            continue
+
+                        if base_uri.startswith('file://'):
+                            base_uri = base_uri[7:]
+
+                        # Replace ** with base_uri
+                        if pattern.startswith('**'):
+                            full_pattern = os.path.join(base_uri, pattern[2:].lstrip('/'))
+                        else:
+                            full_pattern = os.path.join(base_uri, pattern)
+
+                        # Handle {a,b} syntax
+                        if '{' in full_pattern and '}' in full_pattern:
+                            prefix, suffix = full_pattern.split('{')
+                            suffix = suffix.split('}')
+                            options = suffix[0].split(',')
+                            for option in options:
+                                patterns.append(prefix + option + suffix[1])
+                        else:
+                            patterns.append(full_pattern)
+
+        # Remove duplicate file.
+        paths = list(set(patterns))
+
+        # Filter path that it's parent directory is not exist.
+        files = list(filter(lambda path: os.path.exists(os.path.dirname(path)), paths))
+
+        return files
+
     def close_file(self, filepath):
         # Send didClose notification when client close file.
         if is_in_path_dict(self.files, filepath):
@@ -813,6 +969,9 @@ class LspServer:
 
         # We need shutdown LSP server when last file closed, to save system memory.
         if len(self.files) == 0:
+            # Stop workspace file watcher.
+            self.stop_workspace_watch_files()
+
             self.message_queue.put({
                 "name": "server_process_exit",
                 "content": self.server_name
