@@ -5,6 +5,7 @@
 # dependencies = [
 #   "epc",
 #   "orjson",
+#   "packaging",
 #   "sexpdata",
 #   "six",
 #   "setuptools",
@@ -167,10 +168,16 @@ class LspBridge:
             for name in export_functions:
                 self.build_prefix_function(search_backend, search_backend, name)
 
-        # Set log level.
-        [enable_lsp_server_log] = get_emacs_vars(["lsp-bridge-enable-log"])
-        if enable_lsp_server_log:
-            logger.setLevel(logging.DEBUG)
+        [lsp_server_log_level] = get_emacs_vars(["lsp-bridge-log-level"])
+        lsp_server_log_level = str(lsp_server_log_level)
+        if lsp_server_log_level in ["debug", "warning", "error", "critical"]:
+            log_level_dict = {
+                "debug": logging.DEBUG,
+                "warning": logging.WARNING,
+                "error": logging.ERROR,
+                "critical": logging.CRITICAL,
+            }
+            logger.setLevel(log_level_dict[lsp_server_log_level])
 
         # All LSP server response running in message_thread.
         self.message_queue = queue.Queue()
@@ -671,6 +678,10 @@ class LspBridge:
         project_path = get_project_path(filepath)
         multi_lang_server = get_emacs_func_result("get-multi-lang-server", project_path, filepath)
 
+        # notify change workspace folder to copilot server
+        if self.copilot.is_initialized:
+            self.copilot.change_workspace_folder(project_path)
+
         if os.path.splitext(filepath)[-1] == '.org':
             single_lang_server = get_emacs_func_result("get-single-lang-server", project_path, filepath)
             lang_server_info = load_single_server_info(single_lang_server)
@@ -679,13 +690,7 @@ class LspBridge:
             create_file_action_with_single_server(filepath, lang_server_info, lsp_server)
         elif multi_lang_server:
             # Try to load multi language server when get-multi-lang-server return match one.
-            multi_lang_server_dir = Path(__file__).resolve().parent / "multiserver"
-            multi_lang_server_path = multi_lang_server_dir / "{}.json".format(multi_lang_server)
-
-            user_multi_lang_server_dir = Path(str(get_emacs_vars(["lsp-bridge-user-multiserver-dir"])[0])).expanduser()
-            user_multi_lang_server_path = user_multi_lang_server_dir / "{}.json".format(multi_lang_server)
-            if user_multi_lang_server_path.exists():
-                multi_lang_server_path = user_multi_lang_server_path
+            multi_lang_server_path = get_lang_server_path(multi_lang_server, True)
 
             with open(multi_lang_server_path, encoding="utf-8", errors="ignore") as f:
                 multi_lang_server_info = json.load(f)
@@ -820,7 +825,7 @@ class LspBridge:
             message_emacs(message + ", disable LSP feature.")
             eval_in_emacs("lsp-bridge--turn-off-lsp-feature", filepath, get_lsp_file_host())
 
-    def turn_off_by_single_file(filepath, single_lang_server):
+    def turn_off_by_single_file(self, filepath, single_lang_server):
         self.turn_off(
             filepath,
             "ERROR: {} not support single-file, you need put this file in a git repository or put .dir-locals.el in project root directory".format(single_lang_server))
@@ -1044,12 +1049,15 @@ def load_single_server_info(lang_server):
     with open(lang_server_info_path, encoding="utf-8", errors="ignore") as f:
         return read_lang_server_info(f)
 
-def get_lang_server_path(server_name):
-    server_dir = Path(__file__).resolve().parent / "langserver"
+def get_lang_server_path(server_name, is_multi_server=False):
+    lang_server_dir = "multiserver" if is_multi_server else "langserver"
+    lang_server_dir_var = "lsp-bridge-user-multiserver-dir" if is_multi_server else "lsp-bridge-user-langserver-dir"
+
+    server_dir = Path(__file__).resolve().parent / lang_server_dir
     server_path_current = server_dir / "{}_{}.json".format(server_name, get_os_name())
     server_path_default = server_dir / "{}.json".format(server_name)
 
-    user_server_dir = Path(str(get_emacs_vars(["lsp-bridge-user-langserver-dir"])[0])).expanduser()
+    user_server_dir = Path(str(get_emacs_vars([lang_server_dir_var])[0])).expanduser()
     user_server_path_current = user_server_dir / "{}_{}.json".format(server_name, get_os_name())
     user_server_path_default = user_server_dir / "{}.json".format(server_name)
 
