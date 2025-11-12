@@ -24,9 +24,28 @@
   :type 'boolean
   :group 'acm-backend-copilot)
 
+(defcustom acm-backend-copilot-launch-mode 'auto
+  "How to launch the Copilot language server.
+`auto' - Automatically detect (try node first, fallback to binary).
+`binary' - Use copilot-language-server binary.
+`node' - Use Node.js to run the language server."
+  :type '(choice (const :tag "Auto detect" auto)
+                 (const :tag "Binary executable" binary)
+                 (const :tag "Node.js" node))
+  :group 'acm-backend-copilot)
+
 (defcustom acm-backend-copilot-node-path "node"
   "The path to node for copilot."
   :type 'string
+  :group 'acm-backend-copilot)
+
+(defcustom acm-backend-copilot-binary-path "copilot-language-server"
+  "The path to copilot-language-server for copilot."
+  :type 'string
+  :group 'acm-backend-copilot)
+
+(defcustom acm-backend-copilot-show-trailing nil
+  "Show only the trailing parts for copilot. (like the VSCode)"
   :group 'acm-backend-copilot)
 
 (defcustom acm-backend-copilot-accept nil
@@ -56,7 +75,26 @@ in the proxy plist. For example:
 (defun acm-backend-copilot-candidates (keyword)
   (acm-with-cache-candidates
    acm-backend-copilot-cache-candiates
-   acm-backend-copilot-items))
+   (if acm-backend-copilot-show-trailing
+       (acm-backend-copilot-candidates-preprocess acm-backend-copilot-items)
+     acm-backend-copilot-items)))
+
+(defun acm-backend-copilot-candidates-preprocess (copilot-candidates)
+  "Preprocess copilot candidates to show only trailing parts like VSCode Copilot."
+  (let* ((line-text (buffer-substring-no-properties (line-beginning-position) (point)))
+         (trimmed (string-trim-left line-text))
+         (prefix (if (string-match ".*\\s-+" trimmed)
+                     (match-string 0 trimmed)
+                   ""))
+         (prefix-len (length prefix)))
+    (mapcar (lambda (copilot-candidate)
+              (let* ((copilot-line (plist-get copilot-candidate :displayLabel))
+                     (trailing-text (if (string-prefix-p prefix copilot-line)
+                                        (substring copilot-line prefix-len)
+                                      copilot-line)))
+                (plist-put copilot-candidate :displayLabel trailing-text)
+                copilot-candidate))
+            copilot-candidates)))
 
 (defun acm-backend-copilot-candidate-expand (candidate-info bound-start &optional preview)
   ;; We need replace whole area with copilot label.
